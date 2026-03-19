@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.database.db import Base, engine
+from app.database.database import Base, engine
 
 from app.routes import auth, match, booking
 

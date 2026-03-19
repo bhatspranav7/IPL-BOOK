@@ -1,29 +1,33 @@
-from fastapi import APIRouter
-from app.database.db import SessionLocal
-from app.models.booking import Booking
-from app.models.match import Match
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.database.database import get_db
+from app.models.seat import Seat
 
 router = APIRouter()
 
-@router.post("/book-ticket")
-def book_ticket(match_id:int, seats:int, user_id:int):
 
-    db = SessionLocal()
+@router.post("/book-seat")
+def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
+    booked_seats = []
 
-    match = db.query(Match).filter(Match.id == match_id).first()
+    for seat_no in seats:
+        seat = db.query(Seat).filter(
+            Seat.match_id == match_id,
+            Seat.seat_number == seat_no
+        ).first()
 
-    if match.available_seats < seats:
-        return {"error":"Not enough seats"}
+        if not seat:
+            raise HTTPException(status_code=404, detail=f"{seat_no} not found")
 
-    match.available_seats -= seats
+        if seat.is_booked:
+            raise HTTPException(status_code=400, detail=f"{seat_no} already booked")
 
-    booking = Booking(
-        user_id=user_id,
-        match_id=match_id,
-        seats=seats
-    )
+        seat.is_booked = True
+        booked_seats.append(seat_no)
 
-    db.add(booking)
     db.commit()
 
-    return {"message":"Ticket booked"}
+    return {
+        "message": "Seats booked successfully",
+        "seats": booked_seats
+    }
