@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy import Column, Integer, ForeignKey, String
+from sqlalchemy.orm import relationship
 from app.database.database import Base
+
 
 class Booking(Base):
     __tablename__ = "bookings"
@@ -7,4 +9,7 @@ class Booking(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     match_id = Column(Integer, ForeignKey("matches.id"))
-    seats = Column(Integer)
+    seat_number = Column(String)
+
+    user = relationship("User")
+    match = relationship("Match")
