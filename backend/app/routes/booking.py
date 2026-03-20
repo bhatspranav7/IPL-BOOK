@@ -3,12 +3,18 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.models.seat import Seat
 from app.utils.redis_client import redis_client
+from app.utils.auth import get_current_user
 
 router = APIRouter()
 
 
 @router.post("/book-seat")
-def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
+def book_seat(
+    match_id: int,
+    seats: list[str],
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
 
     locked_keys = []
 
@@ -17,7 +23,6 @@ def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
 
             lock_key = f"lock:{match_id}:{seat_no}"
 
-            # Try acquiring lock
             is_locked = redis_client.set(lock_key, "locked", nx=True, ex=120)
 
             if not is_locked:
@@ -28,7 +33,6 @@ def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
 
             locked_keys.append(lock_key)
 
-            # DB check
             seat = db.query(Seat).filter(
                 Seat.match_id == match_id,
                 Seat.seat_number == seat_no
@@ -46,6 +50,7 @@ def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
 
         return {
             "message": "Seats booked successfully",
+            "user_id": user_id,
             "seats": seats
         }
 
@@ -54,6 +59,5 @@ def book_seat(match_id: int, seats: list[str], db: Session = Depends(get_db)):
         raise e
 
     finally:
-        # Release locks
         for key in locked_keys:
             redis_client.delete(key)
