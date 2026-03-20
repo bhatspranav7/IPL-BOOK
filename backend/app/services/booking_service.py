@@ -1,13 +1,11 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from app.models.seat import Seat
-from app.models.booking import Booking
 from app.utils.redis_client import redis_client
-from app.services.websocket_manager import manager
-import asyncio
 
 
-def book_seats_service(db: Session, match_id: int, seats: list[str], user_id: int):
+# 🔹 ONLY VALIDATE + LOCK (NO BOOKING)
+def validate_and_lock_seats(db: Session, match_id: int, seats: list[str]):
 
     locked_keys = []
 
@@ -37,38 +35,17 @@ def book_seats_service(db: Session, match_id: int, seats: list[str], user_id: in
             if seat.is_booked:
                 raise HTTPException(status_code=400, detail=f"{seat_no} already booked")
 
-            # mark seat booked
-            seat.is_booked = True
-
-            # store booking history
-            booking = Booking(
-                user_id=user_id,
-                match_id=match_id,
-                seat_number=seat_no
-            )
-
-            db.add(booking)
-
-        db.commit()
-
-        # 🔥 REAL-TIME BROADCAST
-        asyncio.create_task(
-            manager.broadcast({
-                "event": "seat_booked",
-                "match_id": match_id,
-                "seats": seats
-            })
-        )
-
-        return {
-            "message": "Seats booked successfully",
-            "seats": seats
-        }
+        return True
 
     except Exception as e:
-        db.rollback()
-        raise e
-
-    finally:
+        # 🔥 unlock if anything fails
         for key in locked_keys:
             redis_client.delete(key)
+        raise e
+
+
+# 🔹 UNLOCK HELPER
+def unlock_seats(match_id: int, seats: list[str]):
+    for seat_no in seats:
+        key = f"lock:{match_id}:{seat_no}"
+        redis_client.delete(key)

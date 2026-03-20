@@ -1,38 +1,26 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.database.database import get_db
 from app.utils.auth import get_current_user
-from app.services.booking_service import book_seats_service
-from app.models.booking import Booking
+from app.services.booking_service import validate_and_lock_seats
 
-router = APIRouter()
-
-
-# 🔥 BOOK SEATS (NOW CLEAN — SERVICE LAYER)
-@router.post("/book-seat")
-def book_seat(
-    match_id: int,
-    seats: list[str],
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user)
-):
-    return book_seats_service(db, match_id, seats, user_id)
+router = APIRouter(prefix="/booking", tags=["Booking"])
 
 
-# 🔥 GET MY BOOKINGS (LEVEL 5)
-@router.get("/my-bookings")
-def get_my_bookings(
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user)
-):
-    bookings = db.query(Booking).filter(
-        Booking.user_id == user_id
-    ).all()
+# 🔹 TEMPORARY VALIDATION ENDPOINT (OPTIONAL)
+@router.post("/validate-seats")
+def validate_seats(data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    try:
+        match_id = data["match_id"]
+        seats = data["seats"]
 
-    return [
-        {
-            "match_id": b.match_id,
-            "seat_number": b.seat_number
+        validate_and_lock_seats(db, match_id, seats)
+
+        return {
+            "message": "Seats locked successfully",
+            "seats": seats
         }
-        for b in bookings
-    ]
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
