@@ -1,11 +1,44 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from typing import List
+import asyncio
+
 from app.models.seat import Seat
+from app.models.booking_logs import BookingLog
 from app.utils.redis_client import redis_client
+from app.services.websocket_manager import manager
 
 
-# 🔹 ONLY VALIDATE + LOCK (NO BOOKING)
-def validate_and_lock_seats(db: Session, match_id: int, seats: list[str]):
+# =========================================================
+# 🔹 LOGGER FUNCTION
+# =========================================================
+def log_booking(
+    db: Session,
+    match_id: int,
+    seat_no: str,
+    user_id: int,
+    status: str,
+    price: float = None
+):
+    log = BookingLog(
+        match_id=match_id,
+        seat_no=seat_no,
+        user_id=user_id,
+        status=status,
+        price=price
+    )
+    db.add(log)
+    db.commit()
+
+
+# =========================================================
+# 🔹 VALIDATE + LOCK SEATS
+# =========================================================
+def validate_and_lock_seats(
+    db: Session,
+    match_id: int,
+    seats: List[str]
+):
 
     locked_keys = []
 
@@ -30,22 +63,119 @@ def validate_and_lock_seats(db: Session, match_id: int, seats: list[str]):
             ).first()
 
             if not seat:
-                raise HTTPException(status_code=404, detail=f"{seat_no} not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"{seat_no} not found"
+                )
 
             if seat.is_booked:
-                raise HTTPException(status_code=400, detail=f"{seat_no} already booked")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{seat_no} already booked"
+                )
 
         return True
 
     except Exception as e:
-        # 🔥 unlock if anything fails
         for key in locked_keys:
             redis_client.delete(key)
         raise e
 
 
+# =========================================================
+# 🔹 CONFIRM BOOKING (🔥 UPDATED WITH WEBSOCKET)
+# =========================================================
+def confirm_booking(
+    db: Session,
+    match_id: int,
+    seats: List[str],
+    user_id: int,
+    price: float
+):
+    for seat_no in seats:
+
+        seat = db.query(Seat).filter(
+            Seat.match_id == match_id,
+            Seat.seat_number == seat_no
+        ).first()
+
+        if seat:
+            seat.is_booked = True
+
+        # ✅ LOG SUCCESS
+        log_booking(
+            db,
+            match_id=match_id,
+            seat_no=seat_no,
+            user_id=user_id,
+            status="SUCCESS",
+            price=price
+        )
+
+        # 🔓 unlock
+        lock_key = f"lock:{match_id}:{seat_no}"
+        redis_client.delete(lock_key)
+
+    db.commit()
+
+    # 🔥 REAL-TIME PRICE UPDATE BROADCAST
+    try:
+        asyncio.create_task(
+            manager.broadcast({
+                "event": "price_update",
+                "match_id": match_id
+            })
+        )
+    except Exception as e:
+        print("WebSocket broadcast failed:", e)
+
+
+# =========================================================
+# 🔹 FAIL BOOKING
+# =========================================================
+def fail_booking(
+    db: Session,
+    match_id: int,
+    seats: List[str],
+    user_id: int
+):
+    for seat_no in seats:
+
+        log_booking(
+            db,
+            match_id=match_id,
+            seat_no=seat_no,
+            user_id=user_id,
+            status="FAILED"
+        )
+
+        lock_key = f"lock:{match_id}:{seat_no}"
+        redis_client.delete(lock_key)
+
+
+# =========================================================
+# 🔹 PENDING LOG
+# =========================================================
+def log_pending_booking(
+    db: Session,
+    match_id: int,
+    seats: List[str],
+    user_id: int
+):
+    for seat_no in seats:
+        log_booking(
+            db,
+            match_id=match_id,
+            seat_no=seat_no,
+            user_id=user_id,
+            status="PENDING"
+        )
+
+
+# =========================================================
 # 🔹 UNLOCK HELPER
-def unlock_seats(match_id: int, seats: list[str]):
+# =========================================================
+def unlock_seats(match_id: int, seats: List[str]):
     for seat_no in seats:
         key = f"lock:{match_id}:{seat_no}"
         redis_client.delete(key)

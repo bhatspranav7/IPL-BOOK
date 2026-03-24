@@ -1,24 +1,31 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
+import os
 
-DATABASE_URL = "sqlite:///./ipl.db"
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
+# 🔥 USE ENV VARIABLE (DOCKER READY)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/ipldb"
 )
 
+# 🔹 Engine
+engine = create_engine(
+    DATABASE_URL,
+    echo=True
+)
+
+# 🔹 Session
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
     bind=engine
 )
 
+# 🔹 Base
 Base = declarative_base()
 
 
-# 🔹 DB SESSION DEPENDENCY (REQUIRED)
+# 🔹 Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -27,7 +34,12 @@ def get_db():
         db.close()
 
 
-# 🔹 INIT DB (CREATE TABLES)
+# 🔥 INIT DB
 def init_db():
-    from app.models import user, match, seat, booking  # IMPORTANT
+    import app.models.user
+    import app.models.match
+    import app.models.seat
+    import app.models.booking
+    import app.models.booking_logs
+
     Base.metadata.create_all(bind=engine)
