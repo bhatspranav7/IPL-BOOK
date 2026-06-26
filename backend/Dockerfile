@@ -1,17 +1,29 @@
-# Base image
-FROM python:3.10
+# ---------- Base Image ----------
+FROM python:3.10-slim
 
-# Set working dir
+# ---------- Environment ----------
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# ---------- Work Directory ----------
 WORKDIR /app
 
-# Copy files
-COPY . .
+# ---------- Install System Dependencies ----------
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# ---------- Copy Requirements First (for caching) ----------
+COPY requirements.txt .
+
+# ---------- Install Python Dependencies ----------
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port
+# ---------- Copy Project ----------
+COPY . .
+
+# ---------- Expose Port ----------
 EXPOSE 8000
 
-# Run app
+# ---------- Run Application ----------
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

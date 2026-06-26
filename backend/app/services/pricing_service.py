@@ -28,7 +28,12 @@ def get_dynamic_price(db: Session, match_id: int):
 
     # 🔹 Time to match (in hours)
     now = datetime.utcnow()
-    match_time = match.date
+
+    # ✅ FIX: convert string → datetime
+    try:
+        match_time = datetime.strptime(match.date, "%d-%m-%Y")
+    except Exception:
+        return {"error": "Invalid date format in DB"}
 
     time_to_match = (match_time - now).total_seconds() / 3600
     time_to_match = max(time_to_match, 0)

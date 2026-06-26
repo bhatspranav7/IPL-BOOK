@@ -9,8 +9,7 @@ from app.services.websocket_manager import manager
 # 🔹 STEP 1: CREATE PAYMENT INTENT
 def create_payment_intent(db: Session, user_id: int, match_id: int, seats: list[str]):
 
-    # Validate + Lock seats
-    validate_and_lock_seats(db, match_id, seats)
+    
 
     payment_id = str(uuid.uuid4())
 

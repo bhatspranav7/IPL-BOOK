@@ -7,6 +7,7 @@ from app.models.seat import Seat
 from app.models.booking_logs import BookingLog
 from app.utils.redis_client import redis_client
 from app.services.websocket_manager import manager
+from app.services.kafka_producer import send_event
 
 
 # =========================================================
@@ -83,7 +84,7 @@ def validate_and_lock_seats(
 
 
 # =========================================================
-# 🔹 CONFIRM BOOKING (🔥 UPDATED WITH WEBSOCKET)
+# 🔹 CONFIRM BOOKING (🔥 UPDATED WITH KAFKA + WEBSOCKET)
 # =========================================================
 def confirm_booking(
     db: Session,
@@ -118,6 +119,15 @@ def confirm_booking(
 
     db.commit()
 
+    # 🔥 KAFKA EVENT (SUCCESS)
+    send_event("booking-events", {
+        "match_id": match_id,
+        "user_id": user_id,
+        "seats": seats,
+        "price": price,
+        "status": "SUCCESS"
+    })
+
     # 🔥 REAL-TIME PRICE UPDATE BROADCAST
     try:
         asyncio.create_task(
@@ -131,7 +141,7 @@ def confirm_booking(
 
 
 # =========================================================
-# 🔹 FAIL BOOKING
+# 🔹 FAIL BOOKING (🔥 UPDATED WITH KAFKA)
 # =========================================================
 def fail_booking(
     db: Session,
@@ -152,9 +162,17 @@ def fail_booking(
         lock_key = f"lock:{match_id}:{seat_no}"
         redis_client.delete(lock_key)
 
+    # 🔥 KAFKA EVENT (FAILED)
+    send_event("booking-events", {
+        "match_id": match_id,
+        "user_id": user_id,
+        "seats": seats,
+        "status": "FAILED"
+    })
+
 
 # =========================================================
-# 🔹 PENDING LOG
+# 🔹 PENDING LOG (🔥 UPDATED WITH KAFKA)
 # =========================================================
 def log_pending_booking(
     db: Session,
@@ -170,6 +188,14 @@ def log_pending_booking(
             user_id=user_id,
             status="PENDING"
         )
+
+    # 🔥 KAFKA EVENT (PENDING)
+    send_event("booking-events", {
+        "match_id": match_id,
+        "user_id": user_id,
+        "seats": seats,
+        "status": "PENDING"
+    })
 
 
 # =========================================================
