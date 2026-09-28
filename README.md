@@ -1,5 +1,11 @@
 # IPL Book
 
+**Live demo → [ipl-book.onrender.com](https://ipl-book.onrender.com)** · [API docs](https://ipl-book.onrender.com/docs) · [Demo script](DEMO.md)
+
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white) ![React](https://img.shields.io/badge/React-20232a?logo=react&logoColor=61dafb) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169e1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-dc382d?logo=redis&logoColor=white) ![scikit-learn](https://img.shields.io/badge/scikit--learn-f7931e?logo=scikitlearn&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ed?logo=docker&logoColor=white)
+
+> Hosted on Render's free tier: the first load after a quiet spell takes ~30–50s while the server wakes up.
+
 Full-stack IPL ticket booking system built around one problem: **two people clicking the same seat at the same instant must never both get it.**
 
 - **Distributed seat locking.** Redis `SET NX EX`; the lock value is the user id, and release is owner-checked with a Lua script.
@@ -15,6 +21,22 @@ React (Vite) ──► FastAPI ──► Redis        seat locks (TTL 120s → 3
                    │    └──► scikit-learn demand model
                    └──► WebSocket / Kafka booking events
 ```
+
+## Try it
+
+1. Create an account on the [live demo](https://ipl-book.onrender.com/login) and open any match.
+2. Open the same match in an incognito window with a second account.
+3. Lock a seat in one window: it turns amber in the other instantly, and the second user can't take it.
+4. Pay (or simulate a failure), let the **AI pick best** agent choose seats, or run the **lock race** in the Lab panel.
+
+## Verified behaviour
+
+End-to-end suite run against the Docker stack (real Postgres + Redis):
+
+- 20 users locking the same seat simultaneously → **exactly 1 wins, 19 rejected**
+- Another user can't pay for, confirm, cancel, release or even read your booking
+- Failed payments and expired locks return seats to sale automatically
+- Price rises with occupancy and urgency (₹1,009 empty/far → ₹1,820 nearly full/2h out)
 
 ## Run it
 
