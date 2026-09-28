@@ -1,0 +1,35 @@
+# Render Blueprint: New > Blueprint > pick this repo. Creates the web app,
+# a Postgres database and a Redis-compatible Key Value store, all wired together.
+services:
+  - type: web
+    name: ipl-book
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ipl-book-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ipl-book-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      # Comma-separated emails allowed to create matches. Leave empty for open demo mode.
+      - key: ADMIN_EMAILS
+        sync: false
+
+  - type: keyvalue
+    name: ipl-book-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: ipl-book-db
+    plan: free
+    databaseName: ipldb

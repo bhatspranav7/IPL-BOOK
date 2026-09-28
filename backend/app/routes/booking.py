@@ -1,26 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
+from app.schemas.payment_schema import SeatRequest
 from app.utils.auth import get_current_user
-from app.services.booking_service import validate_and_lock_seats
+from app.services.booking_service import validate_and_lock_seats, release_seats
+from app.services.payment_service import list_user_bookings
 
 router = APIRouter(prefix="/booking", tags=["Booking"])
 
 
-# 🔹 TEMPORARY VALIDATION ENDPOINT (OPTIONAL)
+# 🔹 VALIDATE + LOCK (Redis SET NX with TTL)
 @router.post("/validate-seats")
-def validate_seats(data: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    try:
-        match_id = data["match_id"]
-        seats = data["seats"]
+def validate_seats(data: SeatRequest, db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
 
-        validate_and_lock_seats(db, match_id, seats)
+    result = validate_and_lock_seats(db, data.match_id, data.seats, user_id)
 
-        return {
-            "message": "Seats locked successfully",
-            "seats": seats
-        }
+    return {
+        "message": "Seats locked successfully",
+        **result
+    }
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+# 🔹 RELEASE LOCKS (user changed their mind)
+@router.post("/release")
+def release(data: SeatRequest, user_id: int = Depends(get_current_user)):
+    seats = [s.strip().upper() for s in data.seats]
+    return {"released": release_seats(data.match_id, seats, user_id)}
+
+
+# 🔹 MY BOOKINGS
+@router.get("/me")
+def my_bookings(db: Session = Depends(get_db), user_id: int = Depends(get_current_user)):
+    return list_user_bookings(db, user_id)

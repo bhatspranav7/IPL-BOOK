@@ -3,8 +3,7 @@ from jose import jwt
 from datetime import datetime, timedelta
 import hashlib
 
-SECRET_KEY = "supersecret"
-ALGORITHM = "HS256"
+from app.config import SECRET_KEY, ALGORITHM, TOKEN_HOURS
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -21,7 +20,7 @@ def verify_password(plain_password: str, hashed_password: str):
 
 def create_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=2)
+    expire = datetime.utcnow() + timedelta(hours=TOKEN_HOURS)
     to_encode.update({"exp": expire})
 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

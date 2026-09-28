@@ -1,17 +1,39 @@
-import joblib
-import numpy as np
+import logging
 from datetime import datetime
 
-model = joblib.load("app/ml/demand_model.pkl")
+import joblib
+import pandas as pd
 
-def predict_demand(seats_remaining, time_to_match):
-    now = datetime.now()
+from app.ml.train_model import MODEL_PATH, train
 
-    hour = now.hour
-    day_of_week = now.weekday()
+logger = logging.getLogger(__name__)
 
-    features = np.array([[hour, day_of_week, seats_remaining, time_to_match]])
+
+def _load():
+    try:
+        bundle = joblib.load(MODEL_PATH)
+        if isinstance(bundle, dict) and bundle.get("version") == 2:
+            return bundle
+        logger.warning("Outdated demand model format - retraining")
+    except Exception as e:
+        logger.warning("Could not load demand model (%s) - retraining", e)
+    return train(verbose=False)
+
+
+_bundle = _load()
+model = _bundle["model"]
+FEATURES = _bundle["features"]
+MODEL_MAE = _bundle.get("mae")
+
+
+def predict_demand(occupancy: float, hours_to_match: float, now: datetime | None = None):
+    now = now or datetime.now()
+
+    features = pd.DataFrame(
+        [[now.hour, now.weekday(), occupancy, hours_to_match]],
+        columns=FEATURES
+    )
 
     prediction = model.predict(features)[0]
 
-    return float(prediction)
+    return float(min(max(prediction, 0.0), 1.0))

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
@@ -18,39 +18,33 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 def initiate_payment(
     data: SeatRequest,
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user)   # ✅ FIXED
+    user_id: int = Depends(get_current_user)
 ):
-    try:
-        return create_payment_intent(db, user_id, data.match_id, data.seats)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return create_payment_intent(db, user_id, data.match_id, data.seats)
 
 
 @router.post("/confirm-payment")
 def confirm(
     data: PaymentConfirmRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
 ):
-    try:
-        return confirm_payment(db, data.payment_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return confirm_payment(db, data.payment_id, user_id)
 
 
 @router.post("/fail-payment")
 def fail(
     data: PaymentConfirmRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
 ):
-    try:
-        return fail_payment(db, data.payment_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return fail_payment(db, data.payment_id, user_id)
 
 
 @router.get("/status/{payment_id}")
-def payment_status(payment_id: str, db: Session = Depends(get_db)):
-    try:
-        return get_payment_status(db, payment_id)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+def payment_status(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    return get_payment_status(db, payment_id, user_id)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.database import Base
@@ -15,6 +15,8 @@ class Booking(Base):
 
     payment_id = Column(String, nullable=True)
     payment_status = Column(String, default="PENDING")  # PENDING / SUCCESS / FAILED
+
+    amount = Column(Float, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -16,6 +16,7 @@ h11==0.16.0
 httptools==0.7.1
 idna==3.11
 joblib==1.5.3
+kafka-python==2.0.2
 numpy==2.2.6
 pandas==2.3.3
 passlib==1.7.4
